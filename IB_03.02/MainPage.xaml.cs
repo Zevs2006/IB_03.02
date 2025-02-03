@@ -1,17 +1,21 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using SQLite;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Maui.Controls;
+using System.IO;
+using System.Web;
 
-namespace IB_03._02
+
+namespace _1232131212212231
 {
     public partial class MainPage : ContentPage
     {
-        private readonly string dbPath = "vulnerable.db";
-        private HttpListener _server;
+        private readonly string dbPath = Path.Combine(FileSystem.AppDataDirectory, "vulnerable.db");
+        private HttpListener? _server;
+        private SQLiteConnection? db;
 
         public MainPage()
         {
@@ -20,11 +24,9 @@ namespace IB_03._02
             StartServer();
         }
 
-        private SQLiteConnection db;
-
         private void InitDatabase()
         {
-            db = new SQLiteConnection(System.IO.Path.Combine(FileSystem.AppDataDirectory, "vulnerable.db"));
+            db = new SQLiteConnection(dbPath);
             db.CreateTable<User>();
 
             if (db.Table<User>().Count() == 0)
@@ -33,21 +35,22 @@ namespace IB_03._02
             }
         }
 
-        private string AuthenticateUser(string username, string password)
+        private string AuthenticateUser(string? username, string? password)
         {
-            var user = db.Table<User>().FirstOrDefault(u => u.Username == username && u.Password == password);
+            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+                return "Ошибка: пустые данные.";
+
+            var user = db?.Table<User>().FirstOrDefault(u => u.Username == username && u.Password == password);
             return user != null ? $"Добро пожаловать, {username}!" : "Ошибка: неверные данные.";
         }
 
-        // Модель пользователя
         public class User
         {
             [PrimaryKey, AutoIncrement]
             public int Id { get; set; }
-            public string Username { get; set; }
-            public string Password { get; set; }
+            public string Username { get; set; } = string.Empty;
+            public string Password { get; set; } = string.Empty;
         }
-
 
         private async void StartServer()
         {
@@ -72,9 +75,9 @@ namespace IB_03._02
 
             if (request.HttpMethod == "POST" && request.Url.AbsolutePath == "/login")
             {
-                using var reader = new System.IO.StreamReader(request.InputStream, request.ContentEncoding);
+                using var reader = new StreamReader(request.InputStream, request.ContentEncoding);
                 var body = reader.ReadToEnd();
-                var formData = System.Web.HttpUtility.ParseQueryString(body);
+                var formData = HttpUtility.ParseQueryString(body);
 
                 var username = formData["username"];
                 var password = formData["password"];
@@ -90,6 +93,12 @@ namespace IB_03._02
 
         private async void OnLoginClicked(object sender, EventArgs e)
         {
+            if (string.IsNullOrEmpty(UsernameEntry.Text) || string.IsNullOrEmpty(PasswordEntry.Text))
+            {
+                ResultLabel.Text = "Введите логин и пароль.";
+                return;
+            }
+
             using var client = new HttpClient();
             var content = new FormUrlEncodedContent(new[]
             {
@@ -103,4 +112,5 @@ namespace IB_03._02
             ResultLabel.Text = result;
         }
     }
+
 }
